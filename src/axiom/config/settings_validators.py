@@ -1,15 +1,16 @@
 from typing import Any, Dict
+from .settings_options import LoggerType
 
 class SettingsValidator:
     @staticmethod
     def validate_enable_gcp_logging(value: bool) -> bool:
         return bool(value)
 
+    # This is not used -> no setting for logger type
     @staticmethod
     def validate_logger_type(value: str) -> str:
-        valid_types = ['console', 'file', 'gcp']
-        if value not in valid_types:
-            raise ValueError(f"Invalid logger type. Must be one of {valid_types}")
+        if value not in LoggerType._value2member_map_:
+            raise ValueError(f"Invalid logger type. Must be one of {list(LoggerType._value2member_map_.keys())}")
         return value
     
     @staticmethod
