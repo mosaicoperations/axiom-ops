@@ -1,5 +1,126 @@
-import os 
+import os
+from typing import Any, Callable, Generic, List, Optional, Type, TypeVar, Union, Dict
+from .default_settings import DEFAULT_SETTINGS
+from .parse_environment_variables import parse_boolean, parse_json, parse_int, parse_list
 
+T = TypeVar('T')
+
+class Setting(Generic[T]):
+    def __init__(self, name: str, default: T, validators: List[Callable[[Any], Any]], description: str = ""):
+        self.name: str = name
+        self.default: T = default
+        self.validators: List[Callable[[Any], Any]] = validators
+        self.description: str = description
+        self._value: Optional[T] = None
+
+    def __get__(self, obj: Any, objtype: Optional[Type] = None) -> T:
+        if obj is None:
+            return self
+        if self._value is None:
+            return self.default
+        return self._value
+
+    def __set__(self, obj: Any, value: Any) -> None:
+        print(f"Setting value for {self.name} to {value} in {obj.__class__.__name__}")
+        for validator in self.validators:
+            value = validator(value)
+        self._value = value
+    
+    def reset(self) -> None:
+        self._value = None
+
+
+class Settings:
+    def __init__(self):
+        self._load_default_settings()
+        self.load_from_env()
+    
+    def _load_default_settings(self):
+        for name, config in DEFAULT_SETTINGS.items():
+            setattr(self.__class__, name, Setting(
+                name,
+                config['default'],
+                config['validators'],
+                config['description']
+            ))
+
+    def _parse_env_value(self, setting, env_value):
+        if isinstance(setting.default, bool):
+            return parse_boolean(env_value)
+        elif isinstance(setting.default, int):
+            return parse_int(env_value)
+        elif isinstance(setting.default, dict):
+            return parse_json(env_value)
+        elif isinstance(setting.default, list):
+            return parse_list(env_value)
+        return env_value
+    
+    def load_from_env(self):
+        for name, setting in self.__class__.__dict__.items():
+            if isinstance(setting, Setting):
+                env_value = os.environ.get(name)
+                if env_value is not None:
+                    try:
+                        env_value = self._parse_env_value(setting, env_value)
+                    except ValueError as e:
+                        print(f"Failed to parse environment variable {name}: {e}")
+                    setattr(self, name, env_value)                       
+        
+    
+    def _update_setting(self, name: str, value: any) -> None:
+        if hasattr(self, name):
+            setting = getattr(self.__class__, name, None)
+            print(
+                f"Attempting to update {name} with value {value} - current type is {type(setting)}")
+            if isinstance(setting, Setting):
+                # Ensure we use the __set__ method
+                setting.__set__(self, value)
+            else:
+                raise ValueError(
+                    f"{name} is not a valid setting because it is of type {type(setting)}, not Setting.")
+        else:
+            raise AttributeError(f"No setting named {name} exists.")
+
+    def update_library_settings(self, setting_dict: dict[str: any]) -> None:
+        if not isinstance(setting_dict, dict):
+            raise TypeError(
+                "Invalid argument: you must pass a dictionary to set settings.")
+        for name, val in setting_dict.items():
+            self._update_setting(name, val)
+
+    def list_settings(self, show_values: bool = False) -> Union[List[str], Dict[str, any]]:
+        if show_values:
+            settings_dict = {
+                name: getattr(self, name) for name, setting in self.__class__.__dict__.items() if isinstance(setting, Setting)
+            }
+            return settings_dict
+        settings_list = [name for name, setting in self.__class__.__dict__.items() if isinstance(setting, Setting)]
+        return settings_list
+
+    def reset_to_defaults(self) -> None:
+        for name, setting in self.__class__.__dict__.items():
+            if isinstance(setting, Setting):
+                setting.reset()
+                
+    def export_to_dict(self) -> Dict[str, Any]:
+        return {name: getattr(self, name) for name, setting in self.__class__.__dict__.items() if isinstance(setting, Setting)}
+        
+    def get_setting_info(self, name: str) -> Dict[str, Any]:
+        setting = getattr(self.__class__, name, None)
+        if isinstance(setting, Setting):
+            return {
+                "name": setting.name,
+                "default": setting.default,
+                "current_value": getattr(self, name),
+                "description": setting.description
+            }
+        raise AttributeError(f"No setting named {name} exists.")
+
+    def __str__(self) -> str:
+        return "\n".join([f"{name}: {getattr(self, name)}" for name, setting in self.__class__.__dict__.items() if isinstance(setting, Setting)])
+
+    def __repr__(self) -> str:
+        return self.__str__()
 # Define library wide settings such as logging or timeouts for API requests
 # Set default behaviour of various things
 
