@@ -21,7 +21,7 @@ class AxiomLogger:
         if self.settings.LOG_TO_CONSOLE:
             console_handler = logging.StreamHandler()
             console_handler.setLevel(self.settings.LOG_STD_LEVEL)
-            formatter = logging.Formatter(self.settings.LOG_FORMAT)
+            formatter = logging.Formatter(self.settings.LOG_FORMAT, datefmt=self.settings.LOG_DATE_FORMAT)
             console_handler.setFormatter(formatter)
             self.logger.addHandler(console_handler)
             self.handlers.append(console_handler)
@@ -35,7 +35,7 @@ class AxiomLogger:
             log_file_path.parent.mkdir(parents=True, exist_ok=True)
             file_handler = logging.FileHandler(log_file_path)
             file_handler.setLevel(self.settings.LOG_FILE_LEVEL)
-            formatter = logging.Formatter(self.settings.LOG_FORMAT)
+            formatter = logging.Formatter(self.settings.LOG_FORMAT, datefmt=self.settings.LOG_DATE_FORMAT)
             file_handler.setFormatter(formatter)
             self.logger.addHandler(file_handler)
             self.handlers.append(file_handler)

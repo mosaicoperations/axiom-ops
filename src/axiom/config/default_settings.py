@@ -30,10 +30,16 @@ DEFAULT_SETTINGS = {
         'var_type': int
     },
     'LOG_FORMAT': {
+        'default': '%Y-%m-%d %H:%M:%S',
+        'description': 'format of date in logs',
+        'var_type': str
+    },
+    'LOG_DATE_FORMAT': {
         'default': '%(asctime)s - %(levelname)s - %(message)s',
         'description': 'format of output logs',
         'var_type': str
     },
+    
     'LOG_STD_LEVEL': {
         'default': 'DEBUG',
         'description': 'How big each batch before sending logs to destination',
