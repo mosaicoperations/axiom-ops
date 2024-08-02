@@ -1,21 +1,27 @@
+from datetime import datetime
 import os
 import json
+import logging
 import yaml
 from typing import Any, Callable, Generic, List, Optional, Type, TypeVar, Union, Dict
 from .default_settings import DEFAULT_SETTINGS
 from .parse_environment_variables import parse_boolean, parse_json, parse_int, parse_list
 from .settings_validators import SettingsValidator
+from axiom.utilities.core import Singleton
+
+logger = logging.getLogger(__name__)
 
 T = TypeVar('T')
 
 class Setting(Generic[T]):
-    def __init__(self, name: str, default: T, validators: List[Callable[[Any], Any]], var_type: T, description: str = ""):
+    def __init__(self, name: str, default: T, validators: List[Callable[[Any], Any]] = None, description: str = "", var_type: T = ""):
         self.name: str = name
         self.default: T = default
         self.validators: List[Callable[[Any], Any]] = validators
         self.description: str = description
         self.var_type: T = var_type
         self._value: Optional[T] = None
+        self.observers = []
 
     def __get__(self, obj: Any, objtype: Optional[Type] = None) -> T:
         if obj is None:
@@ -25,29 +31,47 @@ class Setting(Generic[T]):
         return self._value
 
     def __set__(self, obj: Any, value: Any) -> None:
-        print(f"Setting value for {self.name} to {value} in {obj.__class__.__name__}")
-        validated_value = SettingsValidator.validate_setting(self.name, value)
-        self._value = validated_value
-        if hasattr(obj, 'validate_all'):
-            obj.validate_all()
+        print(f"{datetime.now()}Setting value for {self.name} to {value} in {obj.__class__.__name__}")
+        if self._value != value:
+            validated_value = SettingsValidator.validate_setting(self.name, value)
+            self._value = validated_value
+            if hasattr(obj, 'validate_all'):
+                obj.validate_all()
+            self.notify_observers(obj)
+            # print(f'notified observer {self.observers}')
+
+    
+    def reset(self) -> None:
+        self._value = None
     
     def reset(self) -> None:
         self._value = None
 
+    def add_observer(self, observer):
+        self.observers.append(observer)
 
-class Settings:
+    def remove_observer(self, observer):
+        self.observers.remove(observer)
+
+    def notify_observers(self, obj):
+        for observer in self.observers:
+            observer(obj, self.name, self._value)
+
+
+class Settings(metaclass=Singleton):
     def __init__(self):
         self._load_default_settings()
         self.load_from_env()
         self.validate_all()
+        self.observers = []
     
     def _load_default_settings(self):
         for name, config in DEFAULT_SETTINGS.items():
             setattr(self.__class__, name, Setting(
-                name,
-                config['default'],
-                config['description'],
-                config["var_type"]
+                name=name,
+                default=config['default'],
+                description=config['description'],
+                var_type=config["var_type"]
             ))
 
     def _parse_env_value(self, setting, env_value):
@@ -56,7 +80,7 @@ class Settings:
             int: parse_int,
             dict: parse_json,
             list: parse_list,
-            str: lambda x: x #no-op b/c nothing vars are strings by default
+            str: lambda x: str(x) #no-op b/c nothing vars are strings by default
         }
         print('here')
         parser = type_parsers.get(setting.var_type, lambda x: x) # default to no-op if type not specified in type_parsers
@@ -112,6 +136,7 @@ class Settings:
                 "Invalid argument: you must pass a dictionary to set settings.")
         for name, val in setting_dict.items():
             self.update_setting(name, val)
+            self.notify_observers(name, val)
 
     def list_settings(self, show_values: bool = False) -> Union[List[str], Dict[str, any]]:
         if show_values:
@@ -148,35 +173,25 @@ class Settings:
             SettingsValidator.validate_settings_group(settings_dict)
         except ValueError as e:
             print(f"Settings validation error: {e}")
+            
+    def add_observer(self, observer):
+        self.observers.append(observer)
+        for name in DEFAULT_SETTINGS:
+            setting = getattr(self.__class__, name)
+            setting.add_observer(observer)
+
+    def remove_observer(self, observer):
+        self.observers.remove(observer)
+        for name in DEFAULT_SETTINGS:
+            setting = getattr(self.__class__, name)
+            setting.remove_observer(observer)
+
+    def notify_observers(self, name, value):
+        for observer in self.observers:
+            observer(self, name, value)
 
     def __str__(self) -> str:
         return "\n".join([f"{name}: {getattr(self, name)}" for name, setting in self.__class__.__dict__.items() if isinstance(setting, Setting)])
 
     def __repr__(self) -> str:
         return self.__str__()
-    
-# Define library wide settings such as logging or timeouts for API requests
-# Set default behaviour of various things
-
-# This will include constants:
-#     DEFAULT_TIMEOUT = int(os.getenv('MYLIBRARY_DEFAULT_TIMEOUT', 30))
-#     ENABLE_EXTENDED_LOGGING = os.getenv('MYLIBRARY_EXTENDED_LOGGING', 'False') == 'True'
-#     API_VERSION = os.getenv('MYLIBRARY_API_VERSION', 'v1')
-# but will also include a function(s) like this one:
-#     def initialize_library(config_dict=None):
-#         global DEFAULT_TIMEOUT, ENABLE_EXTENDED_LOGGING, API_VERSION
-#         if config_dict:
-#             DEFAULT_TIMEOUT = config_dict.get('DEFAULT_TIMEOUT', DEFAULT_TIMEOUT)
-#             ENABLE_EXTENDED_LOGGING = config_dict.get('ENABLE_EXTENDED_LOGGING', ENABLE_EXTENDED_LOGGING)
-#             API_VERSION = config_dict.get('API_VERSION', API_VERSION)
-# which can be called by the user like so:
-#     import mylibrary
-
-#     config_settings = {
-#         'DEFAULT_TIMEOUT': 20,
-#         'ENABLE_EXTENDED_LOGGING': True,
-#         'API_VERSION': 'v2'
-#     }
-
-#     mylibrary.initialize_library(config_settings)
-# to overwrite settings to modify behaviour to desired state

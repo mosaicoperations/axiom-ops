@@ -38,4 +38,7 @@ docs/_build/
 poetry.lock
 
 # scratchpad stuff
-scratchpad.py
+scratchpad*.py
+
+# logs
+*.log
