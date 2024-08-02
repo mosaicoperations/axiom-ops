@@ -13,7 +13,7 @@ from google.cloud import storage
 from google.cloud.exceptions import GoogleCloudError
 
 
-class SurveyDataInterface:
+class Survey123Client:
     """
     A class to interface with ArcGIS to fetch survey data, convert it to CSV, and upload it to Google Cloud Storage.
 
@@ -228,6 +228,25 @@ class SurveyDataInterface:
         today_date = datetime.today().strftime("%Y%m%d")
         return f'{fname_split[0]}_fall2023_{today_date}.{fname_split[-1]}'
 
+    def get_survey_data_to_csv(self) -> None:
+        """
+        Fetches survey data for each feature layer, converts it to CSV, and uploads it to GCS.
+        """
+        all_data = []
+        for i, fname in enumerate(self.csv_names):
+            if fname == 'advocacy_survey.csv':
+                fname = self.datestamp_fname(fname)
+                self.final_file_names['advocacy_survey_file'] = fname
+            feature_layer = self._get_feature_layer(i)
+            survey_responses = self.get_survey_data(feature_layer)
+            if not survey_responses:
+                self.logger.info(
+                    f"No responses found for feature layer {i}. Skipping upload.")
+                continue
+            survey_data_csv = self.convert_dict_to_csv(survey_responses)
+            all_data.append(survey_data_csv)
+        return all_data
+    
     def get_survey_data_to_gcs(self) -> None:
         """
         Fetches survey data for each feature layer, converts it to CSV, and uploads it to GCS.
