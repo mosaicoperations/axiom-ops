@@ -5,7 +5,7 @@ DEFAULT_SETTINGS = {
         'var_type': bool
     },
     'LOG_GCP_PROJECT': {
-        'default': 'nope',
+        'default': 'orbital-airfoil-393318',
         'description': 'Project ID to log to',
         'var_type': str
     },

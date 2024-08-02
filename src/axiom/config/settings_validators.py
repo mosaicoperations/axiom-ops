@@ -1,10 +1,15 @@
 from typing import Any, Dict
-from .settings_options import LoggerType
+from .settings_options import LoggerType, GCPProjects
 
 class SettingsValidator:
     @staticmethod
-    def validate_enable_gcp_logging(value: bool) -> bool:
+    def validate_log_gcp_enabled(value: bool) -> bool:
         return bool(value)
+    
+    @staticmethod 
+    def validate_log_gcp_project(value: str) -> str:
+        if value.lower() not in GCPProjects._value2member_map_:
+            raise ValueError(f"Invalid LOG_GCP_PROJECT value {value}. Must be one of {list(GCPProjects._value2member_map_)}")
 
     # This is not used -> no setting for logger type
     @staticmethod

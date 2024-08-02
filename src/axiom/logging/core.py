@@ -46,7 +46,7 @@ class AxiomLogger:
                 raise ImportError("Google Cloud Logging library not installed. Please install it to use GCP logging.")
             if self.settings.LOG_GCP_PROJECT == '':
                 raise ValueError("LOG_GCP_PROJECT cannot be empty When LOG_GCP_PROJECT is enabled. Please provide a valid GCP project ID.")
-            gcp_client = gcp_logging.Client()
+            gcp_client = gcp_logging.Client(project=self.settings.LOG_GCP_PROJECT)
             gcp_handler = gcp_logging.handlers.CloudLoggingHandler(gcp_client)
             gcp_handler.setLevel(self.settings.LOG_GCP_LEVEL)
             self.logger.addHandler(gcp_handler)
